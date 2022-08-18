@@ -8,19 +8,32 @@ using AOT;
 using UnityEngine;
 using UnityEngine.UI;
 
+using Unity.Mathematics;
+
 public class WebCamController : MonoBehaviour
 {
     [DllImport("__Internal")]
     static extern void SetMindARCallBack(Action<int,float[]> cb);
+    [DllImport("__Internal")]
+    static extern void SetBarCodeCallBack(Action<string> cb);
+
     [RuntimeInitializeOnLoadMethod]
-    static void Init() => SetMindARCallBack(MindARCallBack);
+    static void Init()
+    {
+        SetMindARCallBack(MindARCallBack);
+        SetBarCodeCallBack(BarCodeCallBack);
+    }
 
     static List<(int index,float[] matrix)> UpdateQue = new List<(int index,float[] matrix)>();
+    static List<string> BarcodesQue = new List<string>();
 
     [MonoPInvokeCallback(typeof(Action<int,float[]>))]
     static void MindARCallBack(int index,[MarshalAs(UnmanagedType.LPArray,SizeConst = 16)]float[] matrix) => UpdateQue.Add((index,matrix));
+    [MonoPInvokeCallback(typeof(Action<int,float[]>))]
+    static void BarCodeCallBack(string value) => BarcodesQue.Add(value);
     
     public RawImage image;
+    public TMPro.TMP_Text qrCodes;
     public TMPro.TMP_Text[] names;
     void Start()
     {
@@ -34,7 +47,6 @@ public class WebCamController : MonoBehaviour
     {
         foreach(var group in UpdateQue.GroupBy((pair) => pair.index,(pair) => pair.matrix))
         {
-            Debug.Log((group.Key,group.Count()));
             var floats = group.LastOrDefault((m) => m != null);
             var nameText = names[group.Key];
             nameText.gameObject.SetActive(floats != null);
@@ -49,10 +61,12 @@ public class WebCamController : MonoBehaviour
             nameText.transform.localPosition = matrix.GetPosition() / 10;
 
             nameText.text = nameText.name + "\n" + matrix.GetPosition();
-
-            Debug.Log(nameText.transform.localPosition);
         }
 
+        if(BarcodesQue.Count > 0)
+            qrCodes.text = string.Join("\n",BarcodesQue.Select((code) => code));
+
+        BarcodesQue.Clear();
         UpdateQue.Clear();
     }
 }

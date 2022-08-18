@@ -3,7 +3,50 @@ var LibraryWebCamWebGL = {
 	$cameraAccess: 0, //0 = access unknown, 1 = access granted, 2 = access denied
 	
 	SetMindARCallBack: function(cb) {
-		window.MindARCallBack = cb;
+		window.MindARCallBack = (targetIndex,worldMatrix) => {
+			if(worldMatrix)
+			{
+				var ptr = _malloc(16 * 4);
+				try
+				{
+					HEAPF32.set(worldMatrix, ptr >> 2);
+					Module.dynCall_vii(cb,targetIndex,ptr);
+				}
+				catch(e)
+				{
+					console.error(e);
+				}
+				finally
+				{
+					_free(ptr);
+				}
+			}
+			else Module.dynCall_vii(cb,targetIndex,null);
+		};
+	},
+	SetBarCodeCallBack: function(cb) {
+		window.BarCodeCallBack = (result) => {
+			var resultText = JSON.stringify(result);
+			console.log(resultText);
+			if(Array.isArray(result))
+			{
+				var bufferSize = lengthBytesUTF8(resultText) + 1;
+				var buffer = _malloc(bufferSize);
+				try
+				{
+					stringToUTF8(resultText, buffer, bufferSize);
+					Module.dynCall_vi(cb,buffer);
+				}
+				catch(e)
+				{
+					console.error(e);
+				}
+				finally
+				{
+					_free(buffer);
+				}
+			}
+		};
 	},
 
 	JS_WebCam_IsSupported__proxy: 'sync',
@@ -23,7 +66,7 @@ var LibraryWebCamWebGL = {
 		}
 		navigator.mediaDevices.getUserMedia({
 			audio: false,
-			video: true
+			video: { facingMode: {ideal: "environment" } }
 		}).then(function(stream) {
         	//getUserMedia requests for permission (we want this) and starts the webcam (we don't want this), we're going to immediately turn it off after getting permission
       		var tracks = stream.getVideoTracks();
@@ -120,7 +163,7 @@ var LibraryWebCamWebGL = {
 			audio: false,
 			video: videoInputDevices[deviceId].deviceId ? {
 				deviceId: { exact: videoInputDevices[deviceId].deviceId }
-			} : true
+			} : { facingMode: {ideal: "environment" } }
 		}).then(function(stream) {
 			var video = document.createElement('video');
 			video.srcObject = stream;

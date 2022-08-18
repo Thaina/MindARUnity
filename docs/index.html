@@ -9,6 +9,15 @@
     <link rel="manifest" href="manifest.webmanifest">
 
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.9.11/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill/dist/index.js"></script>
+    <script>
+      window.BarcodeDetector = (window.BarcodeDetector && window.BarcodeDetector.getSupportedFormats) ? window.BarcodeDetector : barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+      BarcodeDetector.getSupportedFormats().then((/** @type {string[]} */supportedFormats) => {
+        console.log("BarcodeDetector.getSupportedFormats : " + supportedFormats.join(","));
+      });
+    </script>
   </head>
   <body>
     <div id="unity-container">
@@ -59,11 +68,11 @@
       }
 
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Build.loader.js";
+      var loaderUrl = buildUrl + "/docs.loader.js";
       var config = {
-        dataUrl: buildUrl + "/Build.data",
-        frameworkUrl: buildUrl + "/Build.framework.js",
-        codeUrl: buildUrl + "/Build.wasm",
+        dataUrl: buildUrl + "/docs.data",
+        frameworkUrl: buildUrl + "/docs.framework.js",
+        codeUrl: buildUrl + "/docs.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "MindAR",
@@ -105,6 +114,7 @@
             var video = device.video;
             video.addEventListener("play",() => {
               setTimeout(async() => {
+                const barcodeDetector = new BarcodeDetector({formats: ['qr_code']});
                 var controller = controllers[deviceId] = new MINDAR.IMAGE.Controller({
                   inputWidth: video.videoWidth,
                   inputHeight: video.videoHeight,
@@ -112,16 +122,13 @@
                   onUpdate: (data) => {
                     if(data.type === 'updateMatrix' && window.MindARCallBack) {
                       const {targetIndex,worldMatrix} = data;
-                      if(worldMatrix)
-                      {
-                        var ptr = unityInstance.Module._malloc(16 * 4);
-                        unityInstance.Module.HEAPF32.set(worldMatrix, ptr >> 2);
-
-                        unityInstance.Module.dynCall_vii(window.MindARCallBack,targetIndex,ptr);
-                        
-                        unityInstance.Module._free(ptr);
-                      }
-                      else unityInstance.Module.dynCall_vii(window.MindARCallBack,targetIndex,null);
+                      window.MindARCallBack(targetIndex,worldMatrix);
+                    }
+                    
+                    if(data.type === 'processDone' && window.BarCodeCallBack && barcodeDetector) {
+                      barcodeDetector.detect(video).then((result) => {
+                        window.BarCodeCallBack(result);
+                      });
                     }
                   }
                 });
